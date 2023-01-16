@@ -1,8 +1,8 @@
-FROM debian:stable-20220125-slim AS supercronic
+FROM debian:stable-20221219-slim AS supercronic
 
-ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.1.12/supercronic-linux-amd64 \
+ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.1/supercronic-linux-amd64 \
     SUPERCRONIC=supercronic-linux-amd64 \
-    SUPERCRONIC_SHA1SUM=048b95b48b708983effb2e5c935a1ef8483d9e3e
+    SUPERCRONIC_SHA1SUM=d7f4c0886eb85249ad05ed592902fa6865bb9d70
 
 RUN apt-get update; apt-get install -y curl \
  && curl -fsSLO "$SUPERCRONIC_URL" \
@@ -13,7 +13,7 @@ RUN apt-get update; apt-get install -y curl \
 
 
 
-FROM mysql:5.7.37
+FROM mysql:5.7.40-debian
 
 LABEL maintainer="Stefan Neuhaus <stefan@stefanneuhaus.org>"
 
@@ -25,34 +25,31 @@ ENV MYSQL_DATABASE=dependencycheck \
 
 WORKDIR /dependencycheck
 
-COPY gradle/wrapper/* /dependencycheck/gradle/wrapper/
-COPY gradlew /dependencycheck/
-COPY settings.gradle /dependencycheck/
-
 RUN set -ex && \
     echo "deb http://http.debian.net/debian buster-backports main" >/etc/apt/sources.list.d/buster-backports.list; \
     apt-get update; \
     mkdir -p /usr/share/man/man1; \
     apt-get install -y openjdk-11-jre-headless procps cron; \
     apt-get purge -y --auto-remove; \
-    rm -rf /var/lib/apt; \
-    /dependencycheck/gradlew --no-daemon wrapper; \
-    echo "0 * * * *  /dependencycheck/update.sh" > /dependencycheck/dependencycheck-database-update; \
-    cat /dev/urandom | tr -dc _A-Za-z0-9 | head -c 32 >/dependencycheck/dc-update.pwd; \
-    chmod 400 /dependencycheck/dc-update.pwd; \
+    rm -rf /var/lib/apt
+
+COPY overlays/wrapper.sh /
+COPY overlays/dependencycheck /dependencycheck/
+COPY overlays/docker-entrypoint-initdb.d /docker-entrypoint-initdb.d/
+
+RUN set -ex && \
+    /dependencycheck/gradlew wrapper; \
+    echo "0 * * * *  /dependencycheck/update.sh" > /dependencycheck/database-update-schedule; \
     chown --recursive mysql:mysql /dependencycheck
 
 COPY --from=supercronic /usr/local/bin/supercronic /usr/local/bin/
-COPY database.gradle update.sh /dependencycheck/
-COPY initialize_schema.sql /docker-entrypoint-initdb.d/
-COPY initialize_security.sql /docker-entrypoint-initdb.d/
 
 RUN set -ex && \
-    sed -i "s/<DC_UPDATE_PASSWORD>/`cat /dependencycheck/dc-update.pwd`/" /dependencycheck/database.gradle; \
+    cat /dev/urandom | tr -dc _A-Za-z0-9 | head -c 32 >/dependencycheck/dc-update.pwd; \
+    chmod 400 /dependencycheck/dc-update.pwd; \
+    sed -i "s/<DC_UPDATE_PASSWORD>/`cat /dependencycheck/dc-update.pwd`/" /dependencycheck/build.gradle; \
     sed -i "s/<DC_UPDATE_PASSWORD>/`cat /dependencycheck/dc-update.pwd`/" /docker-entrypoint-initdb.d/initialize_security.sql; \
     sed -i "s/<MYSQL_USER>/${MYSQL_USER}/" /docker-entrypoint-initdb.d/initialize_security.sql
-
-COPY wrapper.sh /wrapper.sh
 
 EXPOSE 3306
 
