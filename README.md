@@ -20,10 +20,16 @@ In order to start the Database Server simply run
 docker run -p 3306:3306 stefanneuhaus/dependencycheck-central-mysql
 ```
 
-### Analysis clients
+#### NVD API key
+
+To have a faster synchronization process, you should apply for an NVD API key.
+Get one [at the NVD website](https://nvd.nist.gov/developers/request-an-api-key).
+If you have one, start your Docker container with `-e NVD_API_KEY=<Your API key here>`.
+
+### Analysis Clients
 
 All kinds of analysis clients are supported: Gradle, Maven, Ant, Jenkins, CLI. Apply the following changes to your build file:
-- add buildscript dependency for `mysql:mysql-connector-java:8.0.30`
+- add buildscript dependency for `com.mysql:mysql-connector-j:8.2.0`
 - disable database updates triggered by your project: `autoUpdate = false`
 - add database connection parameters: `data { ... }`
 
@@ -34,8 +40,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.owasp:dependency-check-gradle:8.0.0'
-        classpath 'mysql:mysql-connector-java:8.0.30'
+        classpath 'org.owasp:dependency-check-gradle:9.0.6'
+        classpath 'com.mysql:mysql-connector-j:8.2.0'
     }
 }
 
@@ -58,16 +64,18 @@ Start the Dependency Analysis:
 ```
 
 
-## Database updates
+## Database Updates
 
-Updates of the Database are triggered on the hour. Note that the initial update can take quite some time (~90 min on my machine). In order to get reliable analysis results the initial update must have finished successfully. Subsequent updates are incremental ones and should finish within a couple of seconds.
+Updates of the Database are triggered every 2 minutes. The initial update can take quite some time (~50 min on my machine). In order to get reliable analysis results the initial update must have finished successfully. Subsequent updates are incremental ones and should finish within a couple of seconds.
 
 
 ## Compatibility
 
 |             Client |  Server |
 |-------------------:|--------:|
-|         `>= 7.4.4` | `7.4.4` |
+|         `>= 8.0.0` | `9.0.8` |
+|         `>= 8.0.0` | `8.0.0` |
+|            `7.4.4` | `7.4.4` |
 |   `[6.3.0; 7.4.3]` | `6.5.3` |
 |   `[6.1.3; 6.2.2]` | `6.2.0` |
 |   `[6.0.0; 6.1.1]` | `6.0.2` |
